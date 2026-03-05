@@ -42,7 +42,7 @@ const Signup = () => {
     try {
       // 2. Actual API Call to your Node.js server
       const response = await axios.post(
-        "http://localhost:5001/api/auth/signup",
+        "http://localhost:5000/api/auth/signup",
         {
           username: formData.name, // backend 'username' expect kar raha hai
           email: formData.email,

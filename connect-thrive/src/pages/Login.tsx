@@ -22,7 +22,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   try {
     // 1. Backend ko request bhejna
-    const response = await axios.post("http://localhost:5001/api/auth/login", {
+    const response = await axios.post("http://localhost:5000/api/auth/login", {
       email,
       password,
     });

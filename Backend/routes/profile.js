@@ -55,7 +55,7 @@ router.post('/upload-photo', authMiddleware, upload.single('photo'), async (req,
 
     // Build the public URL path that the frontend will use in <img src="">
     // Make sure you serve /uploads statically: app.use('/uploads', express.static('uploads'))
-    const photoUrl = `http://localhost:5001/uploads/avatars/${req.file.filename}`;
+    const photoUrl = `http://localhost:5000/uploads/avatars/${req.file.filename}`;
 
     // Fetch old photo path so we can delete it from disk
     const [rows] = await db.execute(

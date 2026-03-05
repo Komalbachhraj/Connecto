@@ -88,7 +88,7 @@ npm install
 ```
 ## Create a .env file inside the Backend folder and add:
 ```
-PORT=5001
+PORT=5000
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=your_mysql_password_here
@@ -103,7 +103,7 @@ node index.js
 
 ## Backend will run on:
 
-http://localhost:5001
+http://localhost:5000
 
 ## 4️⃣ Frontend Configuration 💻
 

@@ -242,7 +242,7 @@ export default function ProfilePhotoEditor({
       const formData = new FormData();
       formData.append("photo", selectedFile);
 
-      const res = await fetch("http://localhost:5001/api/profile/upload-photo", {
+      const res = await fetch("http://localhost:5000/api/profile/upload-photo", {
         method: "POST",
         body: formData,
         headers: {
