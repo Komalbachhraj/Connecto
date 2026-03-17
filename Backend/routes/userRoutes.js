@@ -34,5 +34,38 @@ router.put("/profile/update", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Update failed" });
   }
 });
+// Get All Buddies (Excluding current user)
+router.get("/all-buddies", authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT id, username, hometown, avatar_url, bio, course, year, travelMode, interests, online 
+       FROM users 
+       WHERE id != ?`,
+      [req.user.id],
+    );
 
+    const formattedRows = rows.map((user) => ({
+      id: user.id,
+      name: user.username,
+      hometown: user.hometown || "Unknown",
+      // Agar avatar_url hai toh wo use karo, nahi toh naam ka pehla letter
+      avatar: user.avatar_url
+        ? user.avatar_url
+        : user.username.charAt(0).toUpperCase(),
+      course: user.course,
+      year: user.year,
+      interests:
+        typeof user.interests === "string"
+          ? JSON.parse(user.interests)
+          : user.interests || [],
+      travelMode: user.travelMode,
+      online: Boolean(user.online),
+    }));
+
+    res.json(formattedRows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch buddies" });
+  }
+});
 module.exports = router;

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
+import { socket } from "@/socket"; // Bas ye kafi hai
 
 import {
   Send,
@@ -264,6 +265,7 @@ const communityData: Record<string, Community> = {
   },
 };
 
+
 const CommunityPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -277,14 +279,27 @@ const CommunityPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeCommentBox, setActiveCommentBox] = useState<number | null>(null);
   const [commentText, setCommentText] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // State for Chat
+  const [chatMessages, setChatMessages] = useState<
+    {
+      is_read: unknown;
+      created_at: string | number | Date;
+      sender_name: string;
+      message_text: string;
+    }[]
+  >([]);
+  const [currentMsg, setCurrentMsg] = useState("");
+  const currentUser = localStorage.getItem("username") || "Anonymous";
   interface Comment {
-  username: string;
-  content: string;
-  created_at: string;
-}
+    username: string;
+    content: string;
+    created_at: string;
+  }
 
-// State hooks (Aapke code mein already hain, bas type update)
-const [comments, setComments] = useState<Record<number, Comment[]>>({});
+  // State hooks (Aapke code mein already hain, bas type update)
+  const [comments, setComments] = useState<Record<number, Comment[]>>({});
+
   // 1. Fetch Posts Logic
   const fetchPosts = async () => {
     try {
@@ -313,7 +328,38 @@ const [comments, setComments] = useState<Record<number, Comment[]>>({});
   useEffect(() => {
     fetchPosts();
   }, [id]);
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest", // Ye page ko upar-niche hone se rokega
+      });
+    }
+  }, [chatMessages]); // Jab bhi messages array update hoga, ye chalega
+  // useEffect ke andar socket listeners add karein
+  // 1. Mark as Read Function
+  const markAsRead = () => {
+    if (id && currentUser) {
+      socket.emit("mark_messages_read", {
+        communityId: id,
+        userId: currentUser, // Aapka naam, taaki server aapke alawa baaki sabke msgs read kar de
+      });
+    }
+  };
 
+  // 2. Listener for Blue Ticks
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("messages_marked_read", (data) => {
+      // Agar server se signal aaya ki read ho gaye hain, toh state update karo
+      setChatMessages((prev) => prev.map((msg) => ({ ...msg, is_read: 1 })));
+    });
+
+    return () => {
+      socket.off("messages_marked_read");
+    };
+  }, [id]);
   // 2. Create Post Logic
   const handleCreatePost = async () => {
     if (!newPost.trim()) return;
@@ -407,6 +453,87 @@ const [comments, setComments] = useState<Record<number, Comment[]>>({});
     }
   };
 
+  useEffect(() => {
+    if (!id) return;
+
+    // 1. Join Room
+    socket.emit("join_community", id);
+    console.log("Joined room:", id);
+
+    // 2. Clear old listener (Taki double messages na aayein)
+    socket.off("receive_message");
+
+    // 3. New Listener
+    socket.on("receive_message", (data) => {
+      console.log("📩 New message received:", data);
+      // Hamesha functional update use karein: (prev) => [...]
+      setChatMessages((prev) => {
+        // Duplicate check: Agar message already list mein hai (by some logic), toh skip karein
+        return [...prev, data];
+      });
+    });
+
+    return () => {
+      socket.off("receive_message");
+    };
+  }, [id]); // Jab community id badlegi, naya room join hoga
+  useEffect(() => {
+    const loadMessages = async () => {
+      try {
+        const res = await axios.get(`http://localhost:5000/api/messages/${id}`);
+        setChatMessages(res.data);
+      } catch (err) {
+        console.error("Failed to load history");
+      }
+    };
+    if (id) loadMessages();
+  }, [id]);
+  const ChatInput = ({ onSend }: { onSend: (msg: string) => void }) => {
+    const [text, setText] = useState("");
+
+    const handleSend = () => {
+      if (text.trim()) {
+        onSend(text);
+        setText("");
+      }
+    };
+
+    return (
+      <div className="p-4 bg-background/50 border-t border-white/10 flex gap-2">
+        <Input
+          placeholder="Type your message..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          className="bg-black/20"
+        />
+        <Button onClick={handleSend} className="btn-glow">
+          <Send className="w-4 h-4" />
+        </Button>
+      </div>
+    );
+  };
+  // Send function same rahega, bas ek console add kiya hai debug ke liye
+  const sendChatMessage = () => {
+    if (currentMsg.trim() && id) {
+      const msgData = {
+        communityId: id,
+        sender_name: "Me",
+        message_text: currentMsg,
+      };
+
+      console.log("📤 Sending message:", msgData);
+      const formatMySQLDate = () => {
+        return new Date().toISOString().slice(0, 19).replace("T", " ");
+      };
+
+      // Phir emit karte waqt:
+      socket.emit("send_message", {
+      msgData
+      });
+      setCurrentMsg("");
+    }
+  };
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -448,7 +575,15 @@ const [comments, setComments] = useState<Record<number, Comment[]>>({});
           </motion.div>
 
           {/* --- Tabs --- */}
-          <Tabs defaultValue="posts" className="space-y-6">
+          <Tabs
+            defaultValue="posts"
+            className="space-y-6"
+            onValueChange={(value) => {
+              if (value === "chat") {
+                markAsRead(); // Jaise hi chat tab khule, ticks blue kar do
+              }
+            }}
+          >
             <TabsList className="glass-card p-1">
               <TabsTrigger value="posts">
                 <ImageIcon className="w-4 h-4 mr-2" /> Posts
@@ -620,15 +755,105 @@ const [comments, setComments] = useState<Record<number, Comment[]>>({});
             </TabsContent>
 
             {/* --- Chat Tab Placeholder --- */}
+            {/* --- Chat Tab - Real Time --- */}
             <TabsContent value="chat">
-              <div className="glass-card p-12 text-center">
-                <MessageCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-                <h3 className="text-xl font-medium mb-2">
-                  Live Chat is coming soon!
-                </h3>
-                <p className="text-muted-foreground">
-                  We're setting up the real-time servers for {community.name}.
-                </p>
+              <div className="glass-card flex flex-col h-[550px] overflow-hidden border-primary/20">
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-black/10">
+                  {chatMessages.length === 0 ? (
+                    <div className="text-center text-muted-foreground mt-20 opacity-50">
+                      <MessageCircle className="w-12 h-12 mx-auto mb-2" />
+                      <p>No messages yet. Start the conversation!</p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, index) => {
+                      const isMe = msg.sender_name === currentUser;
+
+                      // Time formatting logic
+                      const timeStr = msg.created_at
+                        ? new Date(msg.created_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "";
+
+                      return (
+                        <motion.div
+                          key={`msg-${index}`}
+                          initial={{ opacity: 0, x: isMe ? 10 : -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                        >
+                          {/* Name Label */}
+                          <span className="text-[10px] text-muted-foreground mb-1 px-1">
+                            {isMe ? "You" : msg.sender_name}
+                          </span>
+
+                          {/* Message Bubble - Added 'relative' and 'min-w' */}
+                          <div
+                            className={`px-4 py-2 rounded-2xl max-w-[80%] text-sm relative min-w-[90px] ${
+                              isMe
+                                ? "bg-primary text-primary-foreground rounded-tr-none"
+                                : "bg-muted text-foreground rounded-tl-none"
+                            }`}
+                          >
+                            {/* Text with right padding so it doesn't overlap with time */}
+                            <p className="pr-14 break-words">
+                              {msg.message_text}
+                            </p>
+
+                            {/* Timestamp & Read Receipt (Ticks) */}
+                            <div
+                              className={`absolute bottom-1 right-2 flex items-center gap-1 opacity-70 text-[9px] ${
+                                isMe
+                                  ? "text-primary-foreground/80"
+                                  : "text-muted-foreground"
+                              }`}
+                            >
+                              <span>{timeStr}</span>
+
+                              {/* Read Receipt Ticks (Only for my messages) */}
+                              {isMe && (
+                                <span className="text-[11px] leading-none">
+                                  {/* logic: msg.is_read check karega (0 or 1) */}
+                                  {msg.is_read ? (
+                                    <span className="text-blue-400 font-bold">
+                                      ✓✓
+                                    </span>
+                                  ) : (
+                                    <span>✓</span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })
+                  )}
+                  {/* Auto scroll anchor */}
+                  <div ref={scrollRef} />
+                </div>
+
+                {/* Input Area */}
+                <ChatInput
+                  onSend={(msg) => {
+                    // MySQL compatible date format
+                    const mysqlDate = new Date()
+                      .toISOString()
+                      .slice(0, 19)
+                      .replace("T", " ");
+
+                    const msgData = {
+                      communityId: id,
+                      sender_name: currentUser,
+                      message_text: msg, // <--- Ab ye '2026-02-28 13:20:26' bhejega
+                      is_read: 0,
+                    };
+
+                    socket.emit("send_message", msgData);
+                  }}
+                />
               </div>
             </TabsContent>
           </Tabs>

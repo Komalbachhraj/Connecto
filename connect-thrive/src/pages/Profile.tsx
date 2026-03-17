@@ -46,16 +46,19 @@ useEffect(() => {
       });
 
       // Backend data ko state ke sath merge karein aur default values dein
-      setProfile({
-        name: res.data.username || res.data.name || "User",
+      const userData = {
+        name: res.data.username || "User",
         email: res.data.email || "",
         phone: res.data.phone || "",
         hometown: res.data.hometown || "",
-        bio: res.data.bio ,
-      });
-      setTempProfile(profile);
+        bio: res.data.bio || "",
+      };
+
+      setProfile(userData);
+      setTempProfile(userData);
     } catch (err) {
       console.error("Failed to fetch profile", err);
+      
     }
   };
   fetchProfile();

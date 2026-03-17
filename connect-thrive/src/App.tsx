@@ -12,6 +12,7 @@ import FindBuddies from "./pages/FindBuddies";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import ConnectionRequests from "./pages/ConnectionRequests";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <FindBuddies />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/connection-requests"
+            element={
+              <ProtectedRoute>
+                <ConnectionRequests />
               </ProtectedRoute>
             }
           />

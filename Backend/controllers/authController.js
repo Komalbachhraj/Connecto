@@ -29,7 +29,7 @@ exports.login = async (req, res) => {
 
     // 3. Token generate karein
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, username: user.username },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }, // 1 din tak login rahega
     );

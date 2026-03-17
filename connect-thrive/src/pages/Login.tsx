@@ -30,7 +30,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     // 2. Agar success hota hai toh Token save karna
     const { token } = response.data;
     localStorage.setItem("token", token);
-
+    localStorage.setItem("username", response.data.user.username);
     toast({
       title: "Welcome back!",
       description: "You have successfully logged in.",
