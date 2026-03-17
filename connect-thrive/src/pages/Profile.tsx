@@ -1,3 +1,6 @@
+// src/pages/Profile.tsx  (or Profile.jsx)
+// Fully dynamic — communities and activity stats fetched from backend
+
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -6,35 +9,82 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  User, 
-  MapPin, 
-  Mail, 
-  Phone, 
-  Edit3, 
-  Camera,
-  Plane,
-  Code,
-  Brain,
-  Rocket,
-  Dumbbell,
-  MessageCircle,
-  Settings,
-  LogOut
+import { useNavigate } from "react-router-dom";
+import {
+  User, MapPin, Mail, Edit3, Camera,
+  Plane, Code, Brain, Rocket, Dumbbell,
+  MessageCircle, Settings, LogOut,
 } from "lucide-react";
 import axios from "axios";
 import { useState, useEffect } from "react";
+import FindMatchButton from "../components/FindMatch/FindMatchButton";
 
-const Profile = () => {
-  const { toast } = useToast();
-  const [isEditing, setIsEditing] = useState(false);
+const API = "http://localhost:5000/api/users";
+
+// Maps slug → lucide icon + colors (matches your communities table slugs)
+const COMMUNITY_DISPLAY = {
+  travel:           { icon: Plane,    color: "text-travel",   bgColor: "bg-travel/10"   },
+  dsa:              { icon: Code,     color: "text-dsa",      bgColor: "bg-dsa/10"      },
+  "mental-wellness":{ icon: Brain,    color: "text-wellness", bgColor: "bg-wellness/10" },
+  startup:          { icon: Rocket,   color: "text-startup",  bgColor: "bg-startup/10"  },
+  gym:              { icon: Dumbbell, color: "text-gym",      bgColor: "bg-gym/10"      },
+};
+
+function Profile() {
+  const { toast }   = useToast();
+  const navigate    = useNavigate();
+  const [isEditing, setIsEditing]   = useState(false);
+
+  // ── Profile state ─────────────────────────────────────────
   const [profile, setProfile] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    hometown: "",
-    bio: "",
+    name: "", email: "", phone: "", hometown: "", bio: "",
   });
+  const [tempProfile, setTempProfile] = useState(profile);
+
+  // ── Dynamic data state ────────────────────────────────────
+  const [communities, setCommunities] = useState([]);   // from /api/users/communities
+  const [activity, setActivity]       = useState({      // from /api/users/activity
+    posts: 0, connections: 0, messages: 0,
+  });
+  const [loadingData, setLoadingData] = useState(true);
+
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  // ── Fetch all data on load ────────────────────────────────
+  useEffect(() => {
+    const fetchAll = async () => {
+      setLoadingData(true);
+      try {
+        // 1. Profile
+        const profileRes = await axios.get(`${API}/profile`, { headers });
+        const p = profileRes.data;
+        const profileData = {
+          name:     p.username || p.name || "User",
+          email:    p.email    || "",
+          phone:    p.phone    || "",
+          hometown: p.hometown || "",
+          bio:      p.bio      || "",
+        };
+        setProfile(profileData);
+        setTempProfile(profileData);
+
+        // 2. Communities
+        const commRes = await axios.get(`${API}/communities`, { headers });
+        setCommunities(commRes.data);
+
+        // 3. Activity stats
+        const actRes = await axios.get(`${API}/activity`, { headers });
+        setActivity(actRes.data);
+
+      } catch (err) {
+        console.error("Failed to fetch data", err);
+        toast({ variant: "destructive", title: "Error", description: "Could not load profile data" });
+      }
+      setLoadingData(false);
+    };
+    fetchAll();
+  }, []);
 const [tempProfile, setTempProfile] = useState(profile);
   // --- 1. Fetch Profile Data on Load ---
 useEffect(() => {
@@ -64,124 +114,72 @@ useEffect(() => {
   fetchProfile();
 }, []);
 
-  // --- 2. Save Data to Backend ---
-const handleSave = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    await axios.put(
-      "http://localhost:5000/api/users/profile/update",
-      tempProfile, // Buffer data bhejein
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+  // ── Save profile ──────────────────────────────────────────
+  const handleSave = async () => {
+    try {
+      await axios.put(`${API}/profile/update`, tempProfile, { headers });
+      setProfile(tempProfile);
+      setIsEditing(false);
+      toast({ title: "Success", description: "Profile updated!" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Error", description: "Update failed" });
+    }
+  };
 
-    setProfile(tempProfile); // Sirf success par main state update karein
+  const handleCancel = () => {
+    setTempProfile(profile);
     setIsEditing(false);
-    toast({ title: "Success", description: "Profile updated!" });
-  } catch (err) {
-    toast({
-      variant: "destructive",
-      title: "Error",
-      description: "Update failed",
-    });
-  }
-};
+  };
 
-const handleCancel = () => {
-  setTempProfile(profile); // Changes discard karke wapas original data set karein
-  setIsEditing(false);
-};
-const handleLogout = () => {
-  // 1. Token hatao
-  localStorage.removeItem("token");
-  
-  // 2. Success message (Optional)
-  toast({
-    title: "Logged Out",
-    description: "You have been successfully logged out.",
-  });
-
-  // 3. Page ko redirect karo (Navigate use karke ya window reload se)
-  // Sabse aasan tarika window.location hai taki state fresh ho jaye
-  window.location.href = "/"; 
-};
-const communities = [
-  { id: "travel", name: "Travel", icon: Plane, color: "text-travel", bgColor: "bg-travel/10" },
-  { id: "dsa", name: "DSA", icon: Code, color: "text-dsa", bgColor: "bg-dsa/10" },
-  { id: "mental-wellness", name: "Wellness", icon: Brain, color: "text-wellness", bgColor: "bg-wellness/10" },
-  { id: "startup", name: "Startup", icon: Rocket, color: "text-startup", bgColor: "bg-startup/10" },
-  { id: "gym", name: "Gym", icon: Dumbbell, color: "text-gym", bgColor: "bg-gym/10" },
-];
-
-// const Profile = () => {
-//   const [isEditing, setIsEditing] = useState(false);
-//   const [profile, setProfile] = useState({
-//     name: "Ananya Sharma",
-//     email: "ananya@nit.edu",
-//     phone: "+91 98765 43210",
-//     hometown: "Gurgaon",
-//     bio: "Computer Science student passionate about building products that make a difference. Love traveling, coding, and staying fit!",
-//     interests: ["Travel", "DSA", "Startup"],
-//   });
-
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    toast({ title: "Logged Out", description: "You have been successfully logged out." });
+    window.location.href = "/";
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-
       <main className="pt-24 pb-12">
         <div className="container mx-auto px-4 max-w-4xl">
-          {/* Profile Header */}
+
+          {/* ── Profile Header ── */}
           <motion.div
             className="glass-card p-8 mb-8 relative overflow-hidden"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            {/* Background gradient */}
             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5" />
-
             <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
-              {/* Avatar */}
               <div className="relative">
                 <motion.div
                   className="w-32 h-32 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-4xl font-display font-bold text-primary-foreground"
                   whileHover={{ scale: 1.05 }}
                 >
-                  {profile.name.charAt(0)}
+                  {profile.name.charAt(0) || "?"}
                 </motion.div>
                 <button className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground hover:bg-primary/80 transition-colors">
                   <Camera className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Info */}
               <div className="flex-1 text-center md:text-left">
-                <h1 className="text-3xl font-display font-bold mb-2">
-                  {profile.name}
-                </h1>
+                <h1 className="text-3xl font-display font-bold mb-2">{profile.name}</h1>
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-muted-foreground mb-4">
                   <span className="flex items-center gap-1">
-                    <Mail className="w-4 h-4" />
-                    {profile.email}
+                    <Mail className="w-4 h-4" />{profile.email}
                   </span>
                   <span className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4 text-primary" />
-                    {profile.hometown}
+                    <MapPin className="w-4 h-4 text-primary" />{profile.hometown || "—"}
                   </span>
                 </div>
-                <p className="text-muted-foreground">{profile.bio}</p>
+                <p className="text-muted-foreground">{profile.bio || "No bio yet."}</p>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    setTempProfile(profile); // Purana data copy karein
-                    setIsEditing(true);
-                  }}
-                >
+                <Button variant="outline" size="icon"
+                  onClick={() => { setTempProfile(profile); setIsEditing(true); }}>
                   <Edit3 className="w-4 h-4" />
                 </Button>
                 <Button variant="outline" size="icon">
@@ -192,161 +190,118 @@ const communities = [
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Left Column - Edit Form or Stats */}
-            <motion.div
-              className="md:col-span-2 space-y-6"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
+
+            {/* ── Left Column ── */}
+            <motion.div className="md:col-span-2 space-y-6"
+              initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}>
+
               {isEditing ? (
                 <div className="glass-card p-6">
-                  <h2 className="text-xl font-display font-semibold mb-6">
-                    Edit Profile
-                  </h2>
+                  <h2 className="text-xl font-display font-semibold mb-6">Edit Profile</h2>
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="name">Full Name</Label>
-                        <Input
-                          id="name"
-                          value={tempProfile.name}
-                          onChange={(e) =>
-                            setTempProfile({
-                              ...tempProfile,
-                              name: e.target.value,
-                            })
-                          }
-                        />
+                        <Input id="name" value={tempProfile.name}
+                          onChange={(e) => setTempProfile({ ...tempProfile, name: e.target.value })} />
                       </div>
                       <div>
                         <Label htmlFor="hometown">Hometown / City</Label>
-                        <Input
-                          id="hometown"
-                          value={tempProfile.hometown}
-                          onChange={(e) =>
-                            setTempProfile({
-                              ...tempProfile,
-                              hometown: e.target.value,
-                            })
-                          }
-                          placeholder="e.g., Gurgaon, Delhi"
-                        />
+                        <Input id="hometown" value={tempProfile.hometown}
+                          placeholder="e.g., Panipat, Delhi"
+                          onChange={(e) => setTempProfile({ ...tempProfile, hometown: e.target.value })} />
                       </div>
                     </div>
                     <div>
                       <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        value={tempProfile.phone}
-                        onChange={(e) =>
-                          setTempProfile({
-                            ...tempProfile,
-                            phone: e.target.value,
-                          })
-                        }
-                      />
+                      <Input id="phone" value={tempProfile.phone}
+                        onChange={(e) => setTempProfile({ ...tempProfile, phone: e.target.value })} />
                     </div>
                     <div>
                       <Label htmlFor="bio">Bio</Label>
-                      <Textarea
-                        id="bio"
-                        value={
-                          tempProfile.bio 
-                        }
+                      <Textarea id="bio" value={tempProfile.bio} rows={4}
                         placeholder="Tell us more about yourself!"
-                        onChange={(e) =>
-                          setTempProfile({
-                            ...tempProfile,
-                            bio: e.target.value,
-                          })
-                        }
-                        rows={4}
-                      />
+                        onChange={(e) => setTempProfile({ ...tempProfile, bio: e.target.value })} />
                     </div>
                     <div className="flex gap-4">
-                      <Button onClick={handleSave} className="btn-glow">
-                        Save Changes
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsEditing(false)}
-                      >
-                        Cancel
-                      </Button>
+                      <Button onClick={handleSave} className="btn-glow">Save Changes</Button>
+                      <Button variant="outline" onClick={handleCancel}>Cancel</Button>
                     </div>
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* My Communities */}
+                  {/* ── My Communities (DYNAMIC) ── */}
                   <div className="glass-card p-6">
-                    <h2 className="text-xl font-display font-semibold mb-4">
-                      My Communities
-                    </h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                      {communities.map((community, index) => (
-                        <motion.a
-                          key={community.id}
-                          href={`/community/${community.id}`}
-                          className={`glass-card p-4 flex flex-col items-center gap-2 hover:border-primary/50 transition-colors`}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          whileHover={{ scale: 1.05 }}
-                        >
-                          <div
-                            className={`w-12 h-12 rounded-lg ${community.bgColor} flex items-center justify-center`}
-                          >
-                            <community.icon
-                              className={`w-6 h-6 ${community.color}`}
-                            />
-                          </div>
-                          <span className="text-sm font-medium">
-                            {community.name}
-                          </span>
-                        </motion.a>
-                      ))}
-                    </div>
+                    <h2 className="text-xl font-display font-semibold mb-4">My Communities</h2>
+                    {loadingData ? (
+                      <p className="text-muted-foreground text-sm">Loading communities...</p>
+                    ) : communities.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">
+                        You haven't joined any communities yet.{" "}
+                        <a href="/communities" className="text-primary underline">Browse communities</a>
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {communities.map((community, index) => {
+                          const display = COMMUNITY_DISPLAY[community.slug] || {
+                            icon: User, color: "text-primary", bgColor: "bg-primary/10"
+                          };
+                          const Icon = display.icon;
+                          return (
+                            <motion.a
+                              key={community.id}
+                              href={`/community/${community.slug}`}
+                              className="glass-card p-4 flex flex-col items-center gap-2 hover:border-primary/50 transition-colors"
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              whileHover={{ scale: 1.05 }}
+                            >
+                              <div className={`w-12 h-12 rounded-lg ${display.bgColor} flex items-center justify-center`}>
+                                <Icon className={`w-6 h-6 ${display.color}`} />
+                              </div>
+                              <span className="text-sm font-medium">{community.name}</span>
+                            </motion.a>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Activity Stats */}
+                  {/* ── Activity Stats (DYNAMIC) ── */}
                   <div className="glass-card p-6">
-                    <h2 className="text-xl font-display font-semibold mb-4">
-                      Activity
-                    </h2>
-                    <div className="grid grid-cols-3 gap-4">
-                      {[
-                        { label: "Posts", value: "24" },
-                        { label: "Connections", value: "156" },
-                        { label: "Messages", value: "89" },
-                      ].map((stat) => (
-                        <div
-                          key={stat.label}
-                          className="text-center p-4 bg-muted/30 rounded-lg"
-                        >
-                          <div className="text-2xl font-display font-bold gradient-text">
-                            {stat.value}
+                    <h2 className="text-xl font-display font-semibold mb-4">Activity</h2>
+                    {loadingData ? (
+                      <p className="text-muted-foreground text-sm">Loading stats...</p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-4">
+                        {[
+                          { label: "Posts",       value: activity.posts       },
+                          { label: "Connections", value: activity.connections },
+                          { label: "Messages",    value: activity.messages    },
+                        ].map((stat) => (
+                          <div key={stat.label} className="text-center p-4 bg-muted/30 rounded-lg">
+                            <div className="text-2xl font-display font-bold gradient-text">
+                              {stat.value}
+                            </div>
+                            <div className="text-sm text-muted-foreground">{stat.label}</div>
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            {stat.label}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
             </motion.div>
 
-            {/* Right Column - Quick Actions */}
-            <motion.div
-              className="space-y-6"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              {/* Hometown Badge */}
+            {/* ── Right Column ── */}
+            <motion.div className="space-y-6"
+              initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}>
+
+              {/* Hometown */}
               <div className="glass-card p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -354,9 +309,7 @@ const communities = [
                   </div>
                   <div>
                     <h3 className="font-medium">Hometown</h3>
-                    <p className="text-primary font-semibold">
-                      {profile.hometown}
-                    </p>
+                    <p className="text-primary font-semibold">{profile.hometown || "—"}</p>
                   </div>
                 </div>
                 <Button variant="outline" className="w-full" asChild>
@@ -364,31 +317,31 @@ const communities = [
                 </Button>
               </div>
 
+              {/* Find Your Match */}
+              <div className="glass-card p-6">
+                <h3 className="font-display font-semibold mb-2">Find Your People</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Discover students who share your communities and interests.
+                </p>
+                <FindMatchButton onClick={() => navigate("/find-match")} />
+              </div>
+
               {/* Quick Links */}
               <div className="glass-card p-6">
                 <h3 className="font-display font-semibold mb-4">Quick Links</h3>
                 <div className="space-y-2">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    asChild
-                  >
+                  <Button variant="ghost" className="w-full justify-start" asChild>
                     <a href="/messages">
-                      <MessageCircle className="w-4 h-4 mr-2" />
-                      Messages
+                      <MessageCircle className="w-4 h-4 mr-2" />Messages
                     </a>
                   </Button>
                   <Button variant="ghost" className="w-full justify-start">
-                    <User className="w-4 h-4 mr-2" />
-                    My Posts
+                    <User className="w-4 h-4 mr-2" />My Posts
                   </Button>
-                  <Button
-                    variant="ghost"
+                  <Button variant="ghost"
                     className="w-full justify-start text-destructive hover:text-destructive"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
+                    onClick={handleLogout}>
+                    <LogOut className="w-4 h-4 mr-2" />Logout
                   </Button>
                 </div>
               </div>
@@ -396,10 +349,460 @@ const communities = [
           </div>
         </div>
       </main>
-
       <Footer />
     </div>
   );
-};
+}
 
 export default Profile;
+// import { motion } from "framer-motion";
+// import Navbar from "@/components/Navbar";
+// import Footer from "@/components/Footer";
+// import { Button } from "@/components/ui/button";
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
+// import { Textarea } from "@/components/ui/textarea";
+// import { useToast } from "@/hooks/use-toast";
+// import ProfilePhotoEditor from "../components/ProfilePhotoEditor";
+// import { useCommunity } from "@/context/CommunityContext";
+// import {
+//   User,
+//   MapPin,
+//   Mail,
+//   Phone,
+//   Edit3,
+//   Camera,
+//   Plane,
+//   Code,
+//   Brain,
+//   Rocket,
+//   Dumbbell,
+//   MessageCircle,
+//   Settings,
+//   LogOut,
+// } from "lucide-react";
+// import axios from "axios";
+// import { useState, useEffect } from "react";
+
+// const communities = [
+//   {
+//     id: "travel",
+//     name: "Travel",
+//     icon: Plane,
+//     color: "text-travel",
+//     bgColor: "bg-travel/10",
+//   },
+//   {
+//     id: "dsa",
+//     name: "DSA",
+//     icon: Code,
+//     color: "text-dsa",
+//     bgColor: "bg-dsa/10",
+//   },
+//   {
+//     id: "mental-wellness",
+//     name: "Wellness",
+//     icon: Brain,
+//     color: "text-wellness",
+//     bgColor: "bg-wellness/10",
+//   },
+//   {
+//     id: "startup",
+//     name: "Startup",
+//     icon: Rocket,
+//     color: "text-startup",
+//     bgColor: "bg-startup/10",
+//   },
+//   {
+//     id: "gym",
+//     name: "Gym",
+//     icon: Dumbbell,
+//     color: "text-gym",
+//     bgColor: "bg-gym/10",
+//   },
+// ];
+
+// const Profile = () => {
+//   const { toast } = useToast();
+//   const { joinedCommunities } = useCommunity();
+//   const [isEditing, setIsEditing] = useState(false);
+//   const [profile, setProfile] = useState({
+//     name: "",
+//     email: "",
+//     phone: "",
+//     hometown: "",
+//     bio: "",
+//     profile_photo: "", // ← add this
+//   });
+//   const myCommunities = communities.filter(c => joinedCommunities.includes(c.id));
+//   const [tempProfile, setTempProfile] = useState(profile);
+//   // --- 1. Fetch Profile Data on Load ---
+//   useEffect(() => {
+//     const fetchProfile = async () => {
+//       try {
+//         const token = localStorage.getItem("token");
+//         const res = await axios.get("http://localhost:5000/api/users/profile", {
+//           headers: { Authorization: `Bearer ${token}` },
+//         });
+
+//         // Backend data ko state ke sath merge karein aur default values dein
+//         const fetchedProfile = {
+//           name: res.data.username || res.data.name || "User",
+//           email: res.data.email || "",
+//           phone: res.data.phone || "",
+//           hometown: res.data.hometown || "",
+//           bio: res.data.bio || "",
+//           profile_photo: res.data.profile_photo
+//             ? res.data.profile_photo.startsWith("http")
+//               ? res.data.profile_photo
+//               : `http://localhost:5000${res.data.profile_photo}`
+//             : "",
+//         };
+//         setProfile(fetchedProfile);
+//         setTempProfile(fetchedProfile);
+//       } catch (err) {
+//         console.error("Failed to fetch profile", err);
+//       }
+//     };
+//     fetchProfile();
+//   }, []);
+
+//   // --- 2. Save Data to Backend ---
+//   const handleSave = async () => {
+//     try {
+//       const token = localStorage.getItem("token");
+//       await axios.put(
+//         "http://localhost:5000/api/users/profile/update",
+//         tempProfile,
+//         { headers: { Authorization: `Bearer ${token}` } }
+//       );
+
+//       setProfile(tempProfile); // Sirf success par main state update karein
+//       setIsEditing(false);
+//       toast({ title: "Success", description: "Profile updated!" });
+//     } catch (err) {
+//       toast({
+//         variant: "destructive",
+//         title: "Error",
+//         description: "Update failed",
+//       });
+//     }
+//   };
+
+//   const handleCancel = () => {
+//     setTempProfile(profile); // Changes discard karke wapas original data set karein
+//     setIsEditing(false);
+//   };
+//   const handleLogout = () => {
+//     // 1. Token hatao
+//     localStorage.removeItem("token");
+
+//     // 2. Success message (Optional)
+//     toast({
+//       title: "Logged Out",
+//       description: "You have been successfully logged out.",
+//     });
+
+//     // 3. Page ko redirect karo (Navigate use karke ya window reload se)
+//     // Sabse aasan tarika window.location hai taki state fresh ho jaye
+//     window.location.href = "/";
+//   };
+
+//   // const Profile = () => {
+//   //   const [isEditing, setIsEditing] = useState(false);
+//   //   const [profile, setProfile] = useState({
+//   //     name: "Ananya Sharma",
+//   //     email: "ananya@nit.edu",
+//   //     phone: "+91 98765 43210",
+//   //     hometown: "Gurgaon",
+//   //     bio: "Computer Science student passionate about building products that make a difference. Love traveling, coding, and staying fit!",
+//   //     interests: ["Travel", "DSA", "Startup"],
+//   //   });
+
+//   return (
+//     <div className="min-h-screen bg-background">
+//       <Navbar />
+
+//       <main className="pt-24 pb-12">
+//         <div className="container mx-auto px-4 max-w-4xl">
+//           {/* Profile Header */}
+//           <motion.div
+//             className="glass-card p-8 mb-8 relative overflow-hidden"
+//             initial={{ opacity: 0, y: 20 }}
+//             animate={{ opacity: 1, y: 0 }}
+//             transition={{ duration: 0.5 }}
+//           >
+//             {/* Background gradient */}
+//             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5" />
+
+//             <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
+//               {/* Avatar */}
+//               <div className="relative">
+//                 <ProfilePhotoEditor // using email as unique ID since you don't expose userId
+//                   userName={profile.name}
+//                   currentPhoto={profile.profile_photo || null}
+//                   onPhotoUpdated={(newUrl) => {
+//                     setProfile((prev) => ({ ...prev, profile_photo: newUrl }));
+//                   }}
+//                 />
+//               </div>
+
+//               {/* Info */}
+//               <div className="flex-1 text-center md:text-left">
+//                 <h1 className="text-3xl font-display font-bold mb-2">
+//                   {profile.name}
+//                 </h1>
+//                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-muted-foreground mb-4">
+//                   <span className="flex items-center gap-1">
+//                     <Mail className="w-4 h-4" />
+//                     {profile.email}
+//                   </span>
+//                   <span className="flex items-center gap-1">
+//                     <MapPin className="w-4 h-4 text-primary" />
+//                     {profile.hometown}
+//                   </span>
+//                 </div>
+//                 <p className="text-muted-foreground">{profile.bio}</p>
+//               </div>
+
+//               {/* Actions */}
+//               <div className="flex gap-2">
+//                 <Button
+//                   variant="outline"
+//                   size="icon"
+//                   onClick={() => {
+//                     setTempProfile(profile); // Purana data copy karein
+//                     setIsEditing(true);
+//                   }}
+//                 >
+//                   <Edit3 className="w-4 h-4" />
+//                 </Button>
+//                 <Button variant="outline" size="icon">
+//                   <Settings className="w-4 h-4" />
+//                 </Button>
+//               </div>
+//             </div>
+//           </motion.div>
+
+//           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+//             {/* Left Column - Edit Form or Stats */}
+//             <motion.div
+//               className="md:col-span-2 space-y-6"
+//               initial={{ opacity: 0, x: -20 }}
+//               animate={{ opacity: 1, x: 0 }}
+//               transition={{ duration: 0.5, delay: 0.2 }}
+//             >
+//               {isEditing ? (
+//                 <div className="glass-card p-6">
+//                   <h2 className="text-xl font-display font-semibold mb-6">
+//                     Edit Profile
+//                   </h2>
+//                   <div className="space-y-4">
+//                     <div className="grid grid-cols-2 gap-4">
+//                       <div>
+//                         <Label htmlFor="name">Full Name</Label>
+//                         <Input
+//                           id="name"
+//                           value={tempProfile.name}
+//                           onChange={(e) =>
+//                             setTempProfile({
+//                               ...tempProfile,
+//                               name: e.target.value,
+//                             })
+//                           }
+//                         />
+//                       </div>
+//                       <div>
+//                         <Label htmlFor="hometown">Hometown / City</Label>
+//                         <Input
+//                           id="hometown"
+//                           value={tempProfile.hometown}
+//                           onChange={(e) =>
+//                             setTempProfile({
+//                               ...tempProfile,
+//                               hometown: e.target.value,
+//                             })
+//                           }
+//                           placeholder="e.g., Gurgaon, Delhi"
+//                         />
+//                       </div>
+//                     </div>
+//                     <div>
+//                       <Label htmlFor="phone">Phone</Label>
+//                       <Input
+//                         id="phone"
+//                         value={tempProfile.phone}
+//                         onChange={(e) =>
+//                           setTempProfile({
+//                             ...tempProfile,
+//                             phone: e.target.value,
+//                           })
+//                         }
+//                       />
+//                     </div>
+//                     <div>
+//                       <Label htmlFor="bio">Bio</Label>
+//                       <Textarea
+//                         id="bio"
+//                         value={tempProfile.bio}
+//                         placeholder="Tell us more about yourself!"
+//                         onChange={(e) =>
+//                           setTempProfile({
+//                             ...tempProfile,
+//                             bio: e.target.value,
+//                           })
+//                         }
+//                         rows={4}
+//                       />
+//                     </div>
+//                     <div className="flex gap-4">
+//                       <Button onClick={handleSave} className="btn-glow">
+//                         Save Changes
+//                       </Button>
+//                       <Button
+//                         variant="outline"
+//                         onClick={() => setIsEditing(false)}
+//                       >
+//                         Cancel
+//                       </Button>
+//                     </div>
+//                   </div>
+//                 </div>
+//               ) : (
+//                 <>
+//                   {/* My Communities */}
+//                   <div className="glass-card p-6">
+//                     <h2 className="text-xl font-display font-semibold mb-4">
+//                       My Communities
+//                     </h2>
+//                     {myCommunities.length === 0 ? (
+//                       <div className="text-center py-8 text-muted-foreground">
+//                         <p className="mb-2">You haven't joined any communities yet.</p>
+//                         <a
+//                           href="/communities"
+//                           className="text-primary hover:underline text-sm"
+//                         >
+//                           Browse Communities →
+//                         </a>
+//                       </div>
+//                     ) : (
+//                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+//                         {myCommunities.map((community, index) => (
+//                           <motion.a
+//                             key={community.id}
+//                             href={`/community/${community.id}`}
+//                             className="glass-card p-4 flex flex-col items-center gap-2 hover:border-primary/50 transition-colors"
+//                             initial={{ opacity: 0, y: 20 }}
+//                             animate={{ opacity: 1, y: 0 }}
+//                             transition={{ delay: index * 0.1 }}
+//                             whileHover={{ scale: 1.05 }}
+//                           >
+//                             <div
+//                               className={`w-12 h-12 rounded-lg ${community.bgColor} flex items-center justify-center`}
+//                             >
+//                               <community.icon
+//                                 className={`w-6 h-6 ${community.color}`}
+//                               />
+//                             </div>
+//                             <span className="text-sm font-medium">
+//                               {community.name}
+//                             </span>
+//                           </motion.a>
+//                         ))}
+//                       </div>
+//                     )}
+//                   </div>
+
+//                   {/* Activity Stats */}
+//                   <div className="glass-card p-6">
+//                     <h2 className="text-xl font-display font-semibold mb-4">
+//                       Activity
+//                     </h2>
+//                     <div className="grid grid-cols-3 gap-4">
+//                       {[
+//                         { label: "Posts", value: "24" },
+//                         { label: "Connections", value: "156" },
+//                         { label: "Messages", value: "89" },
+//                       ].map((stat) => (
+//                         <div
+//                           key={stat.label}
+//                           className="text-center p-4 bg-muted/30 rounded-lg"
+//                         >
+//                           <div className="text-2xl font-display font-bold gradient-text">
+//                             {stat.value}
+//                           </div>
+//                           <div className="text-sm text-muted-foreground">
+//                             {stat.label}
+//                           </div>
+//                         </div>
+//                       ))}
+//                     </div>
+//                   </div>
+//                 </>
+//               )}
+//             </motion.div>
+
+//             {/* Right Column - Quick Actions */}
+//             <motion.div
+//               className="space-y-6"
+//               initial={{ opacity: 0, x: 20 }}
+//               animate={{ opacity: 1, x: 0 }}
+//               transition={{ duration: 0.5, delay: 0.3 }}
+//             >
+//               {/* Hometown Badge */}
+//               <div className="glass-card p-6">
+//                 <div className="flex items-center gap-3 mb-4">
+//                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+//                     <MapPin className="w-5 h-5 text-primary" />
+//                   </div>
+//                   <div>
+//                     <h3 className="font-medium">Hometown</h3>
+//                     <p className="text-primary font-semibold">
+//                       {profile.hometown}
+//                     </p>
+//                   </div>
+//                 </div>
+//                 <Button variant="outline" className="w-full" asChild>
+//                   <a href="/find-buddies">Find Hometown Buddies</a>
+//                 </Button>
+//               </div>
+
+//               {/* Quick Links */}
+//               <div className="glass-card p-6">
+//                 <h3 className="font-display font-semibold mb-4">Quick Links</h3>
+//                 <div className="space-y-2">
+//                   <Button
+//                     variant="ghost"
+//                     className="w-full justify-start"
+//                     asChild
+//                   >
+//                     <a href="/messages">
+//                       <MessageCircle className="w-4 h-4 mr-2" />
+//                       Messages
+//                     </a>
+//                   </Button>
+//                   <Button variant="ghost" className="w-full justify-start">
+//                     <User className="w-4 h-4 mr-2" />
+//                     My Posts
+//                   </Button>
+//                   <Button
+//                     variant="ghost"
+//                     className="w-full justify-start text-destructive hover:text-destructive"
+//                     onClick={handleLogout}
+//                   >
+//                     <LogOut className="w-4 h-4 mr-2" />
+//                     Logout
+//                   </Button>
+//                 </div>
+//               </div>
+//             </motion.div>
+//           </div>
+//         </div>
+//       </main>
+
+//       <Footer />
+//     </div>
+//   );
+// };
+
+// export default Profile;

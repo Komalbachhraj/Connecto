@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Users, MessageCircle, ArrowRight } from "lucide-react";
-import { LucideIcon } from "lucide-react";
+import { Users, MessageCircle, ArrowRight, LucideIcon, Check } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useCommunity } from "@/context/CommunityContext";
 
 interface CommunityCardProps {
   id: string;
@@ -24,6 +25,21 @@ const CommunityCard = ({
   gradient,
   index,
 }: CommunityCardProps) => {
+    const { toast } = useToast();
+    const { joinedCommunities, joinCommunity } = useCommunity();
+    const isJoined = joinedCommunities.includes(id); // checks if this community is already joined
+    const handleJoin = (e: React.MouseEvent) => {
+      e.preventDefault(); // Prevent Link navigation when clicking Join
+      if (isJoined) return;
+  
+      joinCommunity(id);
+  
+      toast({
+        title: `Joined ${name}! 🎉`,
+        description: `You've successfully joined the ${name} community.`,
+        className: "border border-primary/30 bg-background/95 backdrop-blur",
+      });
+    };
   return (
     <motion.div
       initial={{ opacity: 0, y: 50 }}
@@ -63,20 +79,35 @@ const CommunityCard = ({
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Users className="w-4 h-4" />
-                <span>{members}</span>
+                <span>{isJoined ? members + 1 : members}</span>
               </div>
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <MessageCircle className="w-4 h-4" />
                 <span>Active</span>
               </div>
             </div>
-            <motion.div
-              className={`text-sm font-medium flex items-center gap-1 ${color}`}
-              whileHover={{ x: 5 }}
+            <motion.button
+              onClick={handleJoin}
+              className={`text-sm font-medium flex items-center gap-1 px-3 py-1 rounded-full transition-all duration-300 ${
+                isJoined
+                  ? "bg-primary/10 text-primary border border-primary/30 cursor-default"
+                  : `${color} hover:opacity-80`
+              }`}
+              whileHover={isJoined ? {} : { x: 5 }}
+              whileTap={isJoined ? {} : { scale: 0.95 }}
             >
-              Join
-              <ArrowRight className="w-4 h-4" />
-            </motion.div>
+              {isJoined ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Joined
+                </>
+              ) : (
+                <>
+                  Join
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </motion.button>
           </div>
         </motion.div>
       </Link>

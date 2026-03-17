@@ -14,12 +14,14 @@ import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 import ConnectionRequests from "./pages/ConnectionRequests";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { CommunityProvider } from "@/context/CommunityContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+<<<<<<< HEAD
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -74,15 +76,65 @@ const App = () => (
               </ProtectedRoute>
             }
           />
+=======
+      <CommunityProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Protected Routes: Sirf login ke baad dikhenge */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <Messages />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/communities"
+              element={
+                <ProtectedRoute>
+                  <Communities />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/community/:id" element={<CommunityPage />} />
+            <Route
+              path="/find-buddies"
+              element={
+                <ProtectedRoute>
+                  <FindBuddies />
+                </ProtectedRoute>
+              }
+            />
+>>>>>>> bf28f36ce587daf8c27745ba27af19fa1edebc16
 
-          {/* Public Routes: Har koi dekh sakta hai */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+            {/* Public Routes: Har koi dekh sakta hai */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
 
-          {/* Catch-all */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </CommunityProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
